@@ -66,7 +66,7 @@ class PacketSender:
 
             if self.retransmission_attempts[seq_num] > MAX_RETRANSMISSIONS:
                 print(f"🚨 Pacote {seq_num} atingiu o limite de retransmissões ({MAX_RETRANSMISSIONS}). Desistindo.")
-                return  # Não retransmite mais esse pacote
+                return  
 
             print(f"🔄 Timeout para pacote {seq_num}. Retransmitindo tentativa {self.retransmission_attempts[seq_num]}/{MAX_RETRANSMISSIONS}...")
             send_packet(self.conn, seq_num, self.buffer[seq_num])
@@ -82,8 +82,8 @@ class PacketSender:
                     print("Conexão encerrada pelo servidor.")
                     break
                 
-                if "CORRUPT" in response:  # Retransmitir o pacote correspondente
-                    seq_num = int(response.split(':')[1].split(';')[0])  # Extrai o número do pacote
+                if "CORRUPT" in response:  
+                    seq_num = int(response.split(':')[1].split(';')[0])  # extrai o num do pacote
                     print(f"⚠️ Confirmação corrompida para pacote {seq_num}, retransmitindo...")
                     self.retransmit(seq_num)
                     continue
@@ -131,7 +131,7 @@ def client():
         try:
             s.connect((HOST, PORT))
             
-            # Responder à negociação do protocolo
+            
             protocol_response = s.recv(1024).decode('utf-8')
             if "NEGOTIATE:" in protocol_response:
                 s.sendall("GBN".encode('utf-8'))
@@ -149,7 +149,7 @@ def client():
             errored_packets = [2, 4]
             sender.send_packets(packets, errored_packets=errored_packets)
 
-            # Iniciar a thread APÓS definir os pacotes
+            
             ack_thread = threading.Thread(target=sender.receive_ack)
             ack_thread.daemon = True
             ack_thread.start()
