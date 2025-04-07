@@ -1,6 +1,5 @@
 import socket
 import hashlib
-import time
 
 HOST = 'localhost'
 PORT = 12345
@@ -20,10 +19,16 @@ def iniciar_cliente():
         socket_cliente.connect((HOST, PORT))
         print("[*] Conectado ao servidor.")
 
+        tamanho_max_msg = int(socket_cliente.recv(1024).decode())
+        print(f"[*] Tamanho máximo da mensagem: {tamanho_max_msg} bytes")
+
         modo_envio = input("Escolha o modo de envio (1 - Único, 2 - Rajada): ").strip()
 
         if modo_envio == '1':
             mensagem = input("Digite a mensagem a ser enviada: ").strip()
+            if len(mensagem.encode()) > tamanho_max_msg:
+                print("[!] Erro: mensagem excede o tamanho máximo permitido.")
+                return
             enviar_pacote(socket_cliente, 1, mensagem)
             resposta = socket_cliente.recv(1024).decode()
             print(f"[Servidor] {resposta}")
@@ -36,10 +41,14 @@ def iniciar_cliente():
             for i in range(1, total_pacotes + 1):
                 mensagem = f"Pacote {i}"
                 corromper = (i == pacote_corrompido)
+
+                if len(mensagem.encode()) > tamanho_max_msg:
+                    print(f"[!] Erro: o pacote {i} excede o tamanho permitido ({tamanho_max_msg} bytes).")
+                    continue
+
                 enviar_pacote(socket_cliente, i, mensagem, corromper)
                 resposta = socket_cliente.recv(1024).decode()
                 print(f"[Servidor] {resposta}")
-                time.sleep(0.5)
 
         else:
             print("[!] Opção inválida. Encerrando cliente.")
