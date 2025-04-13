@@ -35,7 +35,7 @@ Projeto-Comunica-o/
 2. Inicie o servidor
  ```bash
 
-   python servidor.py
+   python Servidor.py
 ```
 Você verá a mensagem:
 
@@ -45,7 +45,7 @@ Você verá a mensagem:
 3. Execute o cliente em outro terminal
 
 ```bash
-python cliente.py
+python Cliente.py
 ```
 O programa perguntará:
 
