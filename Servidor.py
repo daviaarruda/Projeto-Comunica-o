@@ -5,7 +5,7 @@ import hashlib
 HOST = 'localhost'
 PORT = 12345
 WINDOW_SIZE = 5
-TAMANHO_MAXIMO = 1024  # Define o tamanho máximo permitido
+TAMANHO_MAXIMO = 1024
 
 def calcular_checksum(mensagem):
     return hashlib.md5(mensagem.encode()).hexdigest()
@@ -13,7 +13,6 @@ def calcular_checksum(mensagem):
 def processar_cliente(conexao, endereco):
     print(f"[+] Conexão estabelecida com {endereco}")
 
-    # Handshake: envia o tamanho máximo permitido
     conexao.send(str(TAMANHO_MAXIMO).encode())
 
     while True:
@@ -25,6 +24,7 @@ def processar_cliente(conexao, endereco):
             partes = dados.split('|', 2)
             if len(partes) != 3:
                 print("[!] Pacote malformado recebido. Ignorando.")
+                conexao.send("NACK|MALFORMADO".encode())
                 continue
 
             sequencia, checksum_recebido, mensagem = partes
