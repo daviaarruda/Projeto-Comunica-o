@@ -4,46 +4,57 @@ import hashlib
 
 HOST = 'localhost'
 PORT = 12345
-WINDOW_SIZE = 5
 TAMANHO_MAXIMO = 1024
 
 def calcular_checksum(mensagem):
     return hashlib.md5(mensagem.encode()).hexdigest()
 
-def processar_cliente(conexao, endereco):
+def processar_cliente(conn, endereco):
     print(f"[+] Conexão estabelecida com {endereco}")
 
-    conexao.send(str(TAMANHO_MAXIMO).encode())
+    conn.send(str(TAMANHO_MAXIMO).encode())
 
     while True:
         try:
-            dados = conexao.recv(1024).decode()
+            dados = conn.recv(1024).decode()
             if not dados:
                 break
 
-            partes = dados.split('|', 2)
-            if len(partes) != 3:
+            partes = dados.split('|', 3)
+            if len(partes) != 4:
                 print("[!] Pacote malformado recebido. Ignorando.")
-                conexao.send("NACK|MALFORMADO".encode())
+                conn.send("NACK|MALFORMADO".encode())
                 continue
 
-            sequencia, checksum_recebido, mensagem = partes
-            sequencia = int(sequencia)
+            sequencia_str, checksum_recebido, flag, mensagem = partes
+            try:
+                sequencia = int(sequencia_str)
+            except ValueError:
+                print(f"[!] Sequência inválida: {sequencia_str}")
+                conn.send("NACK|SEQ_INV".encode())
+                continue
+
+            if flag == "PERDER":
+                print(f"[SIMULAÇÃO] Ignorando pacote {sequencia} conforme flag de perda.")
+                continue
 
             checksum_calculado = calcular_checksum(mensagem)
 
             if checksum_recebido != checksum_calculado:
-                print(f"[!] Erro de integridade detectado no pacote {sequencia}. Enviando NACK.")
-                conexao.send(f"NACK|{sequencia}".encode())
+                print(f"[X] ERRO de integridade no pacote {sequencia}. Enviando NACK.")
+                conn.send(f"NACK|{sequencia}".encode())
             else:
-                print(f"[✓] Pacote {sequencia} recebido com sucesso: {mensagem}")
-                conexao.send(f"ACK|{sequencia}".encode())
+                print(f"[✓] Pacote {sequencia} recebido corretamente: {mensagem}")
+                conn.send(f"ACK|{sequencia}".encode())
 
         except ConnectionResetError:
             print(f"[!] Conexão com {endereco} foi encerrada abruptamente.")
             break
+        except Exception as e:
+            print(f"[!] Erro inesperado com {endereco}: {e}")
+            break
 
-    conexao.close()
+    conn.close()
     print(f"[-] Conexão encerrada com {endereco}")
 
 def iniciar_servidor():
@@ -53,9 +64,9 @@ def iniciar_servidor():
     print(f"[*] Servidor aguardando conexões em {HOST}:{PORT}")
 
     while True:
-        conexao, endereco = servidor.accept()
-        cliente_thread = threading.Thread(target=processar_cliente, args=(conexao, endereco))
-        cliente_thread.start()
+        conn, endereco = servidor.accept()
+        thread = threading.Thread(target=processar_cliente, args=(conn, endereco))
+        thread.start()
 
 if __name__ == "__main__":
     iniciar_servidor()
