@@ -39,7 +39,7 @@ def gerenciar_respostas(socket_cliente):
                 with lock:
                     acknowledged[seq] = False
                     print(f"[✘] NACK recebido para pacote {seq}")
-        except Exception:
+        except:
             continue
 
 def iniciar_cliente():
@@ -48,7 +48,6 @@ def iniciar_cliente():
         socket_cliente.connect((HOST, PORT))
         socket_cliente.settimeout(1.5)
         print("[*] Conectado ao servidor.")
-
         tamanho_max_msg = int(socket_cliente.recv(1024).decode())
         print(f"[*] Tamanho máximo da mensagem: {tamanho_max_msg} bytes")
 
@@ -58,23 +57,52 @@ def iniciar_cliente():
 
         while True:
             print("\nMenu:")
-            print("1 - Enviar mensagens em janela deslizante")
+            print("1 - Enviar mensagem única")
+            print("2 - Enviar mensagens em grupo (janela deslizante)")
             print("0 - Encerrar")
             opcao = input("Escolha: ").strip()
 
             if opcao == '1':
-                total_pacotes = int(input("Quantos pacotes deseja enviar? ").strip())
-                mensagens = [input(f"Mensagem do pacote {i+1}: ").strip() for i in range(total_pacotes)]
+                msg = input("Mensagem: ").strip()
+                flag = "OK"
+                if input("Simular perda? (s/n): ").strip().lower() == 's':
+                    flag = "PERDER"
+                elif input("Simular corrupção? (s/n): ").strip().lower() == 's':
+                    flag = "CORROMPER"
+                enviar_pacote(socket_cliente, sequencia, msg, flag)
 
-                perdas_input = input("Deseja simular perda em quais pacotes? (ex: 2 4),se não quiser apenas ENTER: ").strip()
-                pacotes_a_perder = set(map(int, perdas_input.split())) if perdas_input else set()
+                tentativas = 0
+                while tentativas < MAX_TENTATIVAS:
+                    time.sleep(TIMEOUT)
+                    if acknowledged.get(sequencia) == True:
+                        print("[✓] Mensagem entregue com sucesso.")
+                        break
+                    elif acknowledged.get(sequencia) == False:
+                        print("[✘] NACK recebido. Reenviando...")
+                        enviar_pacote(socket_cliente, sequencia, msg, "OK")
+                    else:
+                        print("[!] Timeout, reenviando...")
+                        enviar_pacote(socket_cliente, sequencia, msg, "OK")
+                    tentativas += 1
+
+                sequencia += 1
+
+            elif opcao == '2':
+                total = int(input("Quantos pacotes deseja enviar? "))
+                mensagens = [input(f"Mensagem do pacote {i+1}: ") for i in range(total)]
+
+                perdas_input = input("Simular perda em quais pacotes? (ex: 2 4): ").strip()
+                pacotes_perder = set(map(int, perdas_input.split())) if perdas_input else set()
+
+                corrup_input = input("Simular corrupção em quais pacotes? (ex: 1 3): ").strip()
+                pacotes_corromper = set(map(int, corrup_input.split())) if corrup_input else set()
 
                 base = sequencia
                 next_seq = sequencia
-                fim = sequencia + total_pacotes - 1
+                fim = sequencia + total - 1
 
-                acknowledged = {}
-                tentativas = {i: 0 for i in range(sequencia, fim + 1)}
+                acknowledged = {i: None for i in range(base, fim + 1)}
+                tentativas = {i: 0 for i in range(base, fim + 1)}
                 enviados = {}
 
                 while base <= fim:
@@ -87,43 +115,54 @@ def iniciar_cliente():
                                 next_seq += 1
                                 continue
 
-                            flag_perda = "PERDER" if (next_seq - sequencia + 1) in pacotes_a_perder and tentativas[next_seq] == 0 else "OK"
-                            enviar_pacote(socket_cliente, next_seq, msg, flag_perda)
+                            flag = "OK"
+                            if (next_seq - sequencia + 1) in pacotes_perder and tentativas[next_seq] == 0:
+                                flag = "PERDER"
+                            elif (next_seq - sequencia + 1) in pacotes_corromper and tentativas[next_seq] == 0:
+                                flag = "CORROMPER"
+
+                            enviar_pacote(socket_cliente, next_seq, msg, flag)
                             timers[next_seq] = time.time()
                             enviados[next_seq] = msg
                             tentativas[next_seq] += 1
                             next_seq += 1
 
-                        time.sleep(0.5)
-                        for seq in range(base, next_seq):
-                            if seq in acknowledged:
-                                if acknowledged[seq]:
-                                    del timers[seq]
-                                    base += 1
-                                elif tentativas[seq] < MAX_TENTATIVAS:
-                                    print(f"[!] Reenviando pacote {seq} (NACK)")
-                                    enviar_pacote(socket_cliente, seq, enviados[seq])
-                                    tentativas[seq] += 1
-                                    timers[seq] = time.time()
-                                    acknowledged.pop(seq)
+                    time.sleep(0.5)
+                    avancou = False
+                    for seq in range(base, next_seq):
+                        if acknowledged[seq] is True:
+                            if seq in timers:
+                                del timers[seq]
+                            if base == seq:
+                                base += 1
+                                avancou = True
+                        elif acknowledged[seq] is False and tentativas[seq] < MAX_TENTATIVAS:
+                            print(f"[!] Reenviando pacote {seq} (NACK)")
+                            enviar_pacote(socket_cliente, seq, enviados[seq])
+                            tentativas[seq] += 1
+                            timers[seq] = time.time()
+                            acknowledged[seq] = None
+                        elif acknowledged[seq] is None and time.time() - timers[seq] > TIMEOUT:
+                            if tentativas[seq] < MAX_TENTATIVAS:
+                                print(f"[!] Timeout - Reenviando pacote {seq}")
+                                enviar_pacote(socket_cliente, seq, enviados[seq])
+                                tentativas[seq] += 1
+                                timers[seq] = time.time()
                             else:
-                                if time.time() - timers[seq] > TIMEOUT:
-                                    if tentativas[seq] < MAX_TENTATIVAS:
-                                        print(f"[!] Timeout - Reenviando pacote {seq}")
-                                        enviar_pacote(socket_cliente, seq, enviados[seq])
-                                        tentativas[seq] += 1
-                                        timers[seq] = time.time()
-                                    else:
-                                        print(f"[X] Pacote {seq} excedeu tentativas máximas.")
-                                        acknowledged[seq] = True
-                                        base += 1
+                                print(f"[X] Pacote {seq} excedeu tentativas. Marcado como entregue.")
+                                acknowledged[seq] = True
+                                if base == seq:
+                                    base += 1
+                                    avancou = True
+
+                    if avancou:
+                        print(f"[Janela] Base: {base}, Próximo Seq: {next_seq}")
 
                 sequencia = fim + 1
 
             elif opcao == '0':
                 print("[*] Encerrando cliente.")
                 break
-
             else:
                 print("[!] Opção inválida.")
 

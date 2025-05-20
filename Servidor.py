@@ -1,3 +1,4 @@
+# Servidor.py
 import socket
 import threading
 import hashlib
@@ -11,7 +12,6 @@ def calcular_checksum(mensagem):
 
 def processar_cliente(conn, endereco):
     print(f"[+] Conexão estabelecida com {endereco}")
-
     conn.send(str(TAMANHO_MAXIMO).encode())
 
     while True:
@@ -27,6 +27,7 @@ def processar_cliente(conn, endereco):
                 continue
 
             sequencia_str, checksum_recebido, flag, mensagem = partes
+
             try:
                 sequencia = int(sequencia_str)
             except ValueError:
@@ -36,6 +37,18 @@ def processar_cliente(conn, endereco):
 
             if flag == "PERDER":
                 print(f"[SIMULAÇÃO] Ignorando pacote {sequencia} conforme flag de perda.")
+                continue
+
+            if flag == "CORROMPER":
+                mensagem_corrompida = mensagem[::-1]
+                checksum_valido = calcular_checksum(mensagem)
+                checksum_verificado = calcular_checksum(mensagem_corrompida)
+                if checksum_recebido != checksum_valido:
+                    print(f"[X] (CORROMPIDO) Checksum inválido no pacote {sequencia}.")
+                    conn.send(f"NACK|{sequencia}".encode())
+                else:
+                    print(f"[✓] Pacote {sequencia} recebido mesmo com flag de corrupção: {mensagem_corrompida}")
+                    conn.send(f"ACK|{sequencia}".encode())
                 continue
 
             checksum_calculado = calcular_checksum(mensagem)
@@ -48,7 +61,7 @@ def processar_cliente(conn, endereco):
                 conn.send(f"ACK|{sequencia}".encode())
 
         except ConnectionResetError:
-            print(f"[!] Conexão com {endereco} foi encerrada abruptamente.")
+            print(f"[!] Conexão com {endereco} encerrada abruptamente.")
             break
         except Exception as e:
             print(f"[!] Erro inesperado com {endereco}: {e}")
