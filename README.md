@@ -31,17 +31,15 @@ Projeto-Comunica-o/
 git clone https://github.com/daviaarruda/Projeto-Comunica-o
 cd Projeto-Comunica-o
 ```
-###Passo 2: Iniciar o servidor
-bash
+### Passo 2: Iniciar o servidor
 
 python servidor.py
 No terminal será exibida a mensagem:
 
-css
-Copiar
-Editar
+
 [*] Servidor aguardando conexões em localhost:12345
-###Passo 3: Executar o cliente (em outro terminal)
+### Passo 3: Executar o cliente (em outro terminal)
+
 bash
 Copiar
 Editar
@@ -51,8 +49,7 @@ Ao executar, o cliente conecta ao servidor e recebe o tamanho máximo de mensage
 
 O menu principal oferece as opções:
 
-makefile
-Copiar
+
 Editar
 Menu:
 1 - Enviar mensagens em janela deslizante
